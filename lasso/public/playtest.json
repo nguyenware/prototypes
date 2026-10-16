@@ -1,0 +1,85 @@
+{
+  "id": "lasso",
+  "name": "Lasso",
+  "tagline": "Herd black and white sheep with your dog, then rope one color at a time.",
+  "description": "Your finger is a sheepdog and the flock runs from it. Push the white sheep away from the black ones, then draw a rope loop around a single color to pen them. Each day is a short round with a goal before sunset, and every day adds a new twist: rams, lambs, mud, a wolf and dusk.",
+  "genre": "arcade",
+  "session_minutes": 5,
+  "min_age": 6,
+  "controls": [
+    "touch",
+    "mouse"
+  ],
+  "devices": [
+    "phone",
+    "tablet",
+    "desktop"
+  ],
+  "build": {
+    "version": "0.1.0",
+    "notes": "First playtest build: six days that each add one twist, then remix days that combine them."
+  },
+  "what_to_test": [
+    {
+      "title": "Herding feel",
+      "details": "Does pushing sheep with the dog feel controllable, or do they scatter randomly?"
+    },
+    {
+      "title": "Drawing the rope",
+      "details": "Is it clear how to close a loop? Tell us if loops failed when you thought they should work."
+    },
+    {
+      "title": "Which day is the wall?",
+      "details": "Note the first day you had to retry and what beat you: time, the field filling up, or a twist."
+    }
+  ],
+  "known_issues": [
+    "Placeholder art and sound: shapes and synthesized tones only.",
+    "Revive and ad-break buttons are stand-ins. No real ads play.",
+    "Progress is saved in this browser only.",
+    "Day goals have not been tuned against real play yet.",
+    "On iPhone, sound stays muted while the silent switch is on."
+  ],
+  "media": {
+    "hero": "media/hero.png",
+    "screenshots": [
+      "media/shot-1.png",
+      "media/shot-2.png"
+    ]
+  },
+  "screenshot_canvas": "#cv",
+  "feedback_button": "bottom-left",
+  "events": [
+    {
+      "name": "lasso.pen",
+      "description": "A one-color pen was closed",
+      "props": {
+        "day": "string",
+        "size": "number",
+        "color": "string"
+      }
+    },
+    {
+      "name": "lasso.mixed_pen",
+      "description": "A pen caught more than one color and failed",
+      "props": {
+        "day": "string",
+        "size": "number"
+      }
+    },
+    {
+      "name": "lasso.wolf_chased",
+      "description": "The dog chased the wolf off",
+      "props": {
+        "day": "string"
+      }
+    },
+    {
+      "name": "lasso.revive",
+      "description": "Tester used the More daylight stand-in",
+      "props": {
+        "day": "string"
+      }
+    }
+  ]
+}

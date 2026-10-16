@@ -1,0 +1,64 @@
+{
+  "id": "fuse",
+  "name": "Fuse",
+  "tagline": "Turn the tiles ahead of the flame and keep the fuse burning.",
+  "description": "A flame races along a fuse made of tiles. Tap tiles to turn them and line up the path before the flame gets there. T-junctions split the flame for a bigger score but give you more to keep alive. How long can you keep it lit?",
+  "genre": "arcade",
+  "session_minutes": 4,
+  "min_age": 6,
+  "controls": [
+    "touch",
+    "mouse"
+  ],
+  "devices": [
+    "phone",
+    "tablet",
+    "desktop"
+  ],
+  "build": {
+    "version": "0.1.0",
+    "notes": "First playtest build: endless mode with splitting flames and a speed-up over time."
+  },
+  "what_to_test": [
+    {
+      "title": "Reading ahead",
+      "details": "Can you tell which tile the flame reaches next and which way to turn it?"
+    },
+    {
+      "title": "Pace",
+      "details": "Does the speed-up feel exciting or unfair? About when does it get too fast?"
+    }
+  ],
+  "known_issues": [
+    "Placeholder art and sound: shapes and synthesized tones only.",
+    "Revive and ad-break buttons are stand-ins. No real ads play.",
+    "Progress is saved in this browser only.",
+    "There are no levels yet, only endless play.",
+    "On iPhone, sound stays muted while the silent switch is on."
+  ],
+  "media": {
+    "hero": "media/hero.png",
+    "screenshots": [
+      "media/shot-1.png",
+      "media/shot-2.png"
+    ]
+  },
+  "screenshot_canvas": "#cv",
+  "feedback_button": "bottom-left",
+  "events": [
+    {
+      "name": "fuse.split",
+      "description": "A T-junction split the flame",
+      "props": {
+        "flames": "number"
+      }
+    },
+    {
+      "name": "fuse.revive",
+      "description": "Tester used the ad stand-in after losing",
+      "props": {
+        "level": "string"
+      }
+    }
+  ]
+}

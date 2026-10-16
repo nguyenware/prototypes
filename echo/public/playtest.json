@@ -1,0 +1,80 @@
+{
+  "id": "echo",
+  "name": "Echo",
+  "tagline": "Haunt the whole house in one night, with help from your past selves.",
+  "description": "You are the ghost of the house, and the same evening repeats every night. The family walks the exact same routine each time, so you can learn it. Every night your past self comes back as an echo that scares people too. Split the house between you and your echoes, and don't bump into yourself.",
+  "genre": "puzzle",
+  "session_minutes": 5,
+  "min_age": 8,
+  "controls": [
+    "touch",
+    "mouse",
+    "keyboard"
+  ],
+  "devices": [
+    "phone",
+    "tablet",
+    "desktop"
+  ],
+  "build": {
+    "version": "0.1.0",
+    "notes": "First playtest build: four houses (Cottage, Duplex, Farmhouse, Townhouse) with a sprinting kid, a brave grandpa and two floors."
+  },
+  "what_to_test": [
+    {
+      "title": "Does night 2 click?",
+      "details": "Once your echo appears, can you work out how to split the house with it? Tell us the moment it made sense, or that it never did."
+    },
+    {
+      "title": "Ghost speed",
+      "details": "Is the ghost too slow, too fast or about right for reaching people in time?"
+    },
+    {
+      "title": "Which house is the wall?",
+      "details": "Note the first house where you got stuck and why: routines, the stairs, or the brave grandpa."
+    }
+  ],
+  "known_issues": [
+    "Placeholder art and sound: shapes and synthesized tones only.",
+    "Revive and ad-break buttons are stand-ins. No real ads play.",
+    "Progress is saved in this browser only.",
+    "House timing has not been tuned against real play yet.",
+    "On iPhone, sound stays muted while the silent switch is on."
+  ],
+  "media": {
+    "hero": "media/hero.png",
+    "screenshots": [
+      "media/shot-1.png",
+      "media/shot-2.png"
+    ]
+  },
+  "screenshot_canvas": "#cv",
+  "feedback_button": "bottom-left",
+  "events": [
+    {
+      "name": "echo.night_end",
+      "description": "A night ended without a win or a paradox",
+      "props": {
+        "house": "string",
+        "night": "number",
+        "scared": "number"
+      }
+    },
+    {
+      "name": "echo.paradox",
+      "description": "The ghost touched one of its own echoes",
+      "props": {
+        "house": "string",
+        "night": "number"
+      }
+    },
+    {
+      "name": "echo.revive",
+      "description": "Tester used the ad stand-in after losing",
+      "props": {
+        "house": "string",
+        "kind": "string"
+      }
+    }
+  ]
+}

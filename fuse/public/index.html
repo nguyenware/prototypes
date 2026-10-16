@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fuse · NguyenWare prototype</title>
+<meta name="description" content="Turn the tiles ahead of the flame and keep the fuse burning.">
+<link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<style>:root{--acc:var(--fuse)}</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h2 class="name">Fuse</h2>
+    <button class="hbtn" id="pause" type="button" hidden>Pause</button>
+    <button class="hbtn" id="textsize" type="button">Text M</button>
+    <button class="hbtn" id="sound" type="button" aria-pressed="true">Sound on</button>
+  </header>
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="Fuse play field"></canvas>
+    <div class="hud" aria-live="off">
+      <div class="stat"><span class="k" id="k1">Score</span><span class="v" id="v1">0</span></div>
+      <div class="stat r"><span class="k" id="k2">&nbsp;</span><span class="v" id="v2">0</span></div>
+    </div>
+    <div class="card" id="card" role="dialog" aria-live="polite"></div>
+  </main>
+  <p class="foot">On iPhone, turn the silent switch off for sound.</p>
+</div>
+<script>
+(function(){
+const GAME_ID="fuse";
+"use strict";
+/* Shared prototype core. Concatenated as: core-top.js, <game>.js, core-shell.js, inside one IIFE.
+   The game file defines GAME (its object) before the shell runs. */
+const $=s=>document.querySelector(s);
+const cv=$('#cv'), stage=$('#stage'), card=$('#card');
+let ctx=cv.getContext('2d'), W=1, H=1;
+const css=getComputedStyle(document.documentElement);
+const C={};['ink','panel','raise','line','fg','muted','echo','ghost','lasso','flock','fuse','bad'].forEach(k=>C[k]=css.getPropertyValue('--'+k).trim());
+const FONT_D='Unbounded, "Arial Black", system-ui, sans-serif';
+const FONT_B='Figtree, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+/* ---------- storage, settings, accessibility ---------- */
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const TEXT_SCALES=[1,1.25,1.5];
+let TS=TEXT_SCALES.includes(store.get('proto.textScale',1))?store.get('proto.textScale',1):1;
+// Canvas text: scaled with the Large text setting, never under 12px.
+function F(weight,px,fam){return weight+' '+Math.round(Math.max(12,px)*TS)+'px '+(fam==='d'?FONT_D:FONT_B)}
+const rmQuery=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
+let RM=!!(rmQuery&&rmQuery.matches);
+if(rmQuery&&rmQuery.addEventListener)rmQuery.addEventListener('change',e=>{RM=e.matches});
+
+/* ---------- playtest hub (optional: the game runs the same without it) ---------- */
+const HUB=!!window.Playtest;
+function track(name,props){try{window.Playtest?.event(name,props||{})}catch(e){}}
+
+/* ---------- helpers ---------- */
+const rand=(a,b)=>a+Math.random()*(b-a);
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function buzz(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+function burst(arr,x,y,color,n,spd,size){if(RM)return;n=n||14;spd=spd||160;size=size||3;for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=spd*(0.3+Math.random()*0.7);arr.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0,max:0.35+Math.random()*0.45,color,size:size*(0.6+Math.random()*0.8)})}}
+function stepParts(arr,dt){for(let i=arr.length-1;i>=0;i--){const p=arr[i];p.life+=dt;if(p.life>=p.max){arr.splice(i,1);continue}p.x+=p.vx*dt;p.y+=p.vy*dt;const k=Math.pow(0.12,dt);p.vx*=k;p.vy*=k}}
+function drawParts(arr){for(const p of arr){const k=1-p.life/p.max;ctx.globalAlpha=k;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size*k+0.4,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+function pop(arr,x,y,text,color){arr.push({x,y,text,color,t:0})}
+function stepPops(arr,dt){for(let i=arr.length-1;i>=0;i--){arr[i].t+=dt;if(arr[i].t>0.9)arr.splice(i,1)}}
+function drawPops(arr){ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=F(700,13,'d');for(const p of arr){ctx.globalAlpha=Math.max(0,1-p.t/0.9);ctx.fillStyle=p.color;ctx.fillText(p.text,p.x,p.y-(RM?0:p.t*34))}ctx.globalAlpha=1}
+function segInt(a,b,c,d){const r1=b.x-a.x,r2=b.y-a.y,s1=d.x-c.x,s2=d.y-c.y,den=r1*s2-r2*s1;if(Math.abs(den)<1e-9)return null;const t=((c.x-a.x)*s2-(c.y-a.y)*s1)/den,u=((c.x-a.x)*r2-(c.y-a.y)*r1)/den;if(t>=0&&t<=1&&u>=0&&u<=1)return{x:a.x+t*r1,y:a.y+t*r2};return null}
+function pip(poly,x,y){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a.y>y)!==(b.y>y))&&(x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x))inside=!inside}return inside}
+function rrect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function dotGrid(gap,color){ctx.fillStyle=color;for(let y=gap/2;y<H;y+=gap)for(let x=gap/2;x<W;x+=gap){ctx.fillRect(x,y,1.5,1.5)}}
+
+/* ---------- sound (A minor pentatonic, synthesized) ---------- */
+const SCALE=[220,261.63,293.66,329.63,392];
+const note=i=>SCALE[((i%5)+5)%5]*Math.pow(2,Math.floor(i/5));
+const Snd={ctx:null,on:store.get('proto.sound',true),master:null,nb:null,
+  ensure(){try{if(!this.ctx){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;this.ctx=new AC();this.master=this.ctx.createGain();this.master.gain.value=0.7;this.master.connect(this.ctx.destination)}if(this.ctx.state==='suspended')this.ctx.resume()}catch(e){}},
+  tone(f,d,type,g,when){if(!this.on||!this.ctx)return;d=d||0.18;g=g||0.07;const t=this.ctx.currentTime+(when||0);const o=this.ctx.createOscillator(),a=this.ctx.createGain();o.type=type||'triangle';o.frequency.value=f;a.gain.setValueAtTime(0.0001,t);a.gain.exponentialRampToValueAtTime(g,t+0.012);a.gain.exponentialRampToValueAtTime(0.0001,t+d);o.connect(a).connect(this.master);o.start(t);o.stop(t+d+0.05)},
+  noise(d,g,f,q){if(!this.on||!this.ctx)return;const c=this.ctx;if(!this.nb){const len=Math.floor(c.sampleRate*0.5);this.nb=c.createBuffer(1,len,c.sampleRate);const a=this.nb.getChannelData(0);for(let i=0;i<len;i++)a[i]=Math.random()*2-1}const s=c.createBufferSource();s.buffer=this.nb;const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f||1500;bp.Q.value=q||1;const a=c.createGain();const t=c.currentTime;a.gain.setValueAtTime(g||0.05,t);a.gain.exponentialRampToValueAtTime(0.0001,t+(d||0.12));s.connect(bp).connect(a).connect(this.master);s.start(t);s.stop(t+(d||0.12)+0.02)},
+  bleat(f){if(!this.on||!this.ctx)return;const c=this.ctx,t=c.currentTime,o=c.createOscillator(),l=c.createOscillator(),lg=c.createGain(),lp=c.createBiquadFilter(),a=c.createGain();o.type='sawtooth';o.frequency.setValueAtTime(f,t);o.frequency.linearRampToValueAtTime(f*0.86,t+0.42);l.frequency.value=9;lg.gain.value=f*0.06;l.connect(lg).connect(o.frequency);lp.type='lowpass';lp.frequency.value=1500;a.gain.setValueAtTime(0.0001,t);a.gain.exponentialRampToValueAtTime(0.06,t+0.04);a.gain.exponentialRampToValueAtTime(0.0001,t+0.45);o.connect(lp).connect(a).connect(this.master);o.start(t);l.start(t);o.stop(t+0.5);l.stop(t+0.5)},
+  howl(){if(!this.on||!this.ctx)return;const c=this.ctx,t=c.currentTime,o=c.createOscillator(),a=c.createGain();o.type='sine';o.frequency.setValueAtTime(320,t);o.frequency.linearRampToValueAtTime(560,t+0.35);o.frequency.linearRampToValueAtTime(400,t+1.0);a.gain.setValueAtTime(0.0001,t);a.gain.exponentialRampToValueAtTime(0.05,t+0.15);a.gain.exponentialRampToValueAtTime(0.0001,t+1.05);o.connect(a).connect(this.master);o.start(t);o.stop(t+1.1)},
+  woof(){this.tone(210,0.08,'square',0.035);this.tone(150,0.1,'square',0.03,0.07);this.noise(0.1,0.04,700,1)},
+  lose(){[7,5,3,0].forEach((n,i)=>this.tone(note(n),0.3,'triangle',0.07,i*0.11))}
+};
+
+/* =====================================================
+   FUSE — rotate tiles ahead of the flame
+   ===================================================== */
+const NN=1,EE=2,SS=4,WW=8;
+const DIRS={1:[0,-1],2:[1,0],4:[0,1],8:[-1,0]};
+const opp=d=>((d<<2)|(d>>2))&15;
+const rotm=m=>((m<<1)&15)|(m>>3);
+const Fuse={
+  meta:{title:'Fuse',tag:'Keep the flame alive.',second:'Flames',rules:[
+    'A flame burns along the fuse. Tap a tile to turn it a quarter turn.',
+    'Line up the tile ahead before the flame reaches it. The outline goes orange when it connects.',
+    'T-junctions split the flame and multiply your score. When every flame fizzles, the run ends.']},
+  COLS:6,
+  layout(){const s=Math.floor(Math.min((this.w-12)/this.COLS,(this.h-70)/this.rows));this.s=s;this.ox=Math.floor((this.w-s*this.COLS)/2);this.oy=Math.floor(52+(this.h-64-s*this.rows)/2)},
+  resize(w,h){this.w=w;this.h=h;if(this.rows)this.layout()},
+  reset(w,h){this.w=w;this.h=h;const s0=(w-12)/this.COLS;this.rows=Math.max(6,Math.min(10,Math.floor((h-70)/s0)));this.layout();
+    this.grid=[];for(let i=0;i<this.COLS*this.rows;i++)this.grid.push(this.newTile());
+    this.flames=[];this.t=0;this.score=0;this.burned=0;this.parts=[];this.pops=[];this.wait=2.2;
+    const c=Math.floor(this.COLS/2),r=this.rows-1,st=this.tile(c,r);st.m=5;st.kind='straight';st.drop=0;
+    const up=this.tile(c,r-1);if(up){up.m=5;up.kind='straight'}
+    this.flames=this.enter(c,r,SS,0)},
+  tile(c,r){return(c<0||r<0||c>=this.COLS||r>=this.rows)?null:this.grid[r*this.COLS+c]},
+  newTile(){const x=Math.random();let m,kind;if(x<0.38){kind='straight';m=5}else if(x<0.84){kind='corner';m=3}else if(x<0.96){kind='tee';m=7}else{kind='cross';m=15}
+    const n=Math.floor(Math.random()*4);for(let i=0;i<n;i++)m=rotm(m);return{m,kind,ang:0,ash:false,ashT:0,drop:1,active:0,seed:Math.random()}},
+  enter(c,r,entry,p){const t=this.tile(c,r);const exits=t.kind==='cross'?[opp(entry)]:[1,2,4,8].filter(d=>(t.m&d)&&d!==entry);
+    if(exits.length>1){track('fuse.split',{flames:this.flames.length+exits.length-1});pop(this.pops,this.ox+(c+0.5)*this.s,this.oy+r*this.s,'Split ×'+(this.flames.length+exits.length-1),C.lasso);Snd.tone(note(9),0.2,'triangle',0.06);Snd.tone(note(11),0.2,'triangle',0.05,0.06);buzz(20)}
+    return exits.map(ex=>{t.active++;return{c,r,entry,exit:ex,p:Math.max(0,p)}})},
+  sidePt(c,r,d){const s=this.s,cx=this.ox+(c+0.5)*s,cy=this.oy+(r+0.5)*s,v=DIRS[d];return{x:cx+v[0]*s/2,y:cy+v[1]*s/2}},
+  fpos(f){const s=this.s,cx=this.ox+(f.c+0.5)*s,cy=this.oy+(f.r+0.5)*s,a=this.sidePt(f.c,f.r,f.entry),b=this.sidePt(f.c,f.r,f.exit);
+    if(f.p<0.5){const k=f.p*2;return{x:a.x+(cx-a.x)*k,y:a.y+(cy-a.y)*k}}const k=(f.p-0.5)*2;return{x:cx+(b.x-cx)*k,y:cy+(b.y-cy)*k}},
+  down(x,y){const c=Math.floor((x-this.ox)/this.s),r=Math.floor((y-this.oy)/this.s),t=this.tile(c,r);if(!t)return;
+    if(t.ash)return;if(t.active>0){Snd.noise(0.06,0.04,900);return}
+    t.m=rotm(t.m);t.ang=90;Snd.tone(note(7+(c+r)%5),0.06,'square',0.025);buzz(8)},
+  move(){},up(){},
+  update(dt,live){stepParts(this.parts,dt);stepPops(this.pops,dt);
+    for(let i=0;i<this.grid.length;i++){const t=this.grid[i];t.ang=Math.max(0,t.ang-dt*900);t.drop=RM?0:Math.max(0,t.drop-dt*4);if(t.ash){t.ashT+=dt;if(t.ashT>0.9&&t.active<=0)this.grid[i]=this.newTile()}}
+    if(!live)return;if(this.wait>0){this.wait-=dt;return}this.t+=dt;
+    const tt=Math.max(0.55,1.45-this.t*0.009),next=[];
+    for(const f of this.flames){f.p+=dt/tt;const fp=this.fpos(f);if(!RM&&Math.random()<0.6)this.parts.push({x:fp.x,y:fp.y,vx:rand(-30,30),vy:rand(-70,-20),life:0,max:rand(0.25,0.5),color:Math.random()<0.5?C.fuse:C.lasso,size:rand(1.5,3)});
+      if(f.p<1){next.push(f);continue}
+      const tile=this.tile(f.c,f.r);tile.active--;if(tile.active<=0){tile.ash=true;tile.ashT=0;this.burned++;this.score+=this.flames.length;Snd.noise(0.08,0.035,2400,2)}
+      const v=DIRS[f.exit],nc=f.c+v[0],nr=f.r+v[1],nt=this.tile(nc,nr),ent=opp(f.exit);
+      if(nt&&!nt.ash&&(nt.m&ent)){next.push.apply(next,this.enter(nc,nr,ent,f.p-1))}
+      else{const e=this.sidePt(f.c,f.r,f.exit);burst(this.parts,e.x,e.y,C.muted,14,120,2.5);Snd.noise(0.25,0.06,700,0.7);buzz(25);pop(this.pops,e.x,e.y-10,'Fizzled',C.muted)}}
+    this.flames=next;
+    if(!next.length){Snd.lose();buzz([40,40,80]);gameOver('Every flame fizzled after '+this.burned+' tiles.','fizzle')}},
+  revive(){let best=null,bd=1e9;const cc=(this.COLS-1)/2,rc=(this.rows-1)/2;
+    for(let r=0;r<this.rows;r++)for(let c=0;c<this.COLS;c++){const t=this.tile(c,r);if(t.active>0)continue;const d=Math.hypot(c-cc,r-rc);if(d<bd){bd=d;best={c,r}}}
+    const t=this.tile(best.c,best.r);t.m=15;t.kind='cross';t.ash=false;t.drop=1;t.ang=0;this.flames=this.enter(best.c,best.r,SS,0);this.wait=1.2;
+    const up=this.tile(best.c,best.r-1);if(up&&up.active===0&&!up.ash){up.m=5;up.kind='straight';up.ang=90}
+    pop(this.pops,this.ox+(best.c+0.5)*this.s,this.oy+best.r*this.s,'Relit',C.fuse)},
+  level(){return'endless'},
+  result(){return this.score},
+  hud(){return[this.score,this.flames.length]},
+  draw(){const s=this.s,rope='#7a6550',ropeW=Math.max(4,s*0.11);
+    for(let r=0;r<this.rows;r++)for(let c=0;c<this.COLS;c++){const t=this.tile(c,r),x=this.ox+c*s,y=this.oy+r*s,cx=x+s/2,cy=y+s/2-t.drop*s*0.5;
+      ctx.save();ctx.globalAlpha=1-t.drop;ctx.translate(cx,cy);ctx.rotate(-t.ang*Math.PI/180);
+      rrect(-s/2+2,-s/2+2,s-4,s-4,Math.max(6,s*0.14));ctx.fillStyle=t.ash?'#14161f':C.raise;ctx.fill();
+      if(t.ash){const k=Math.max(0,1-t.ashT/0.9);ctx.fillStyle=C.fuse;for(let i=0;i<5;i++){const a=(t.seed*97+i*2.3)%6.28,d=(t.seed*31+i*0.17)%0.35;ctx.globalAlpha=(1-t.drop)*k*0.8;ctx.fillRect(Math.cos(a)*s*d,Math.sin(a)*s*d,2,2)}}
+      else{ctx.strokeStyle=rope;ctx.lineWidth=ropeW;ctx.lineCap='round';ctx.beginPath();[1,2,4,8].forEach(d=>{if(t.m&d){const v=DIRS[d];ctx.moveTo(0,0);ctx.lineTo(v[0]*s/2,v[1]*s/2)}});ctx.stroke();
+        if(t.kind!=='straight'&&t.kind!=='cross'){ctx.fillStyle=rope;ctx.beginPath();ctx.arc(0,0,ropeW*0.9,0,Math.PI*2);ctx.fill()}
+        if(t.kind==='tee'){ctx.fillStyle=C.lasso;ctx.beginPath();ctx.arc(0,0,ropeW*0.45,0,Math.PI*2);ctx.fill()}}
+      ctx.restore()}
+    // next-tile hint
+    for(const f of this.flames){const v=DIRS[f.exit],nc=f.c+v[0],nr=f.r+v[1],nt=this.tile(nc,nr);if(!nt)continue;const ok=!nt.ash&&(nt.m&opp(f.exit));
+      ctx.strokeStyle=ok?C.fuse:C.bad;ctx.globalAlpha=ok?0.7:RM?0.75:0.45+0.3*Math.sin(performance.now()/120);ctx.lineWidth=2;rrect(this.ox+nc*s+3,this.oy+nr*s+3,s-6,s-6,Math.max(6,s*0.13));ctx.stroke();ctx.globalAlpha=1}
+    // burned path + flame heads
+    for(const f of this.flames){const a=this.sidePt(f.c,f.r,f.entry),p=this.fpos(f),cx=this.ox+(f.c+0.5)*s,cy=this.oy+(f.r+0.5)*s;
+      ctx.save();ctx.strokeStyle=C.fuse;ctx.shadowColor=C.fuse;ctx.shadowBlur=12;ctx.lineWidth=ropeW;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x,a.y);if(f.p>0.5)ctx.lineTo(cx,cy);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,ropeW*2.6);g.addColorStop(0,'#fff6d6');g.addColorStop(0.35,C.lasso);g.addColorStop(1,'rgba(255,122,61,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,ropeW*2.6,0,Math.PI*2);ctx.fill()}
+    drawParts(this.parts);drawPops(this.pops);
+    if(this.wait>0&&state==='play'){ctx.fillStyle=C.fg;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=F(700,15,'d');ctx.fillText('Lighting in '+this.wait.toFixed(1),this.w/2,this.oy-16>40?this.oy-16:this.h-24)}}
+};
+
+const GAME=Fuse;
+
+/* ---------- shell: one game per page ---------- */
+const cur=GAME, name=GAME_ID;
+let state='ready',won=false,reviveUsed=false,cause='',causeCode='',dieT=0,newBest=false,lastT=0,reviving=null,pausedFrom=null,runStart=0,playMs=0,surveyAsked=false;
+function gameOver(why,code){if(state!=='play')return;state='dying';cause=why;causeCode=code||'lost';won=false;dieT=RM?0.3:0.8}
+function winRound(why){if(state!=='play')return;state='dying';cause=why;causeCode='';won=true;dieT=RM?0.3:0.9}
+function result(){return cur.result?cur.result():cur.hud()[0]}
+function finish(){state='over';syncPause();
+  const level=cur.level?cur.level():'endless',dur=Math.round(performance.now()-runStart);
+  if(won)hubEvent('level_complete',{level,score:Number(result())||0,duration_ms:dur});else hubEvent('level_fail',{level,cause:causeCode});
+  if(!cur.customCard){const best=store.get('proto.'+name+'.best',0),sc=Number(result())||0;newBest=sc>best&&sc>0;if(newBest)store.set('proto.'+name+'.best',sc)}
+  showCard('over');
+  // The hub's survey, at a natural break, once the tester has played a few minutes.
+  if(HUB&&!surveyAsked&&playMs>=180000){surveyAsked=true;setTimeout(()=>{if(state==='over')window.Playtest?.survey()},1200)}}
+function hubEvent(n,p){track(n,p)}
+
+function fit(){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.max(1,Math.round(r.width*d));cv.height=Math.max(1,Math.round(r.height*d));ctx=cv.getContext('2d');ctx.setTransform(d,0,0,d,0,0);W=r.width;H=r.height;if(cur.w!=null)cur.resize(W,H)}
+
+function start(){if(reviving){clearInterval(reviving);reviving=null}Snd.ensure();cur.reset(W,H);state='play';won=false;reviveUsed=false;runStart=performance.now();hideCard();syncPause();
+  hubEvent('level_start',{level:cur.level?cur.level():'endless'})}
+
+function showCard(kind){card.hidden=false;stage.classList.add('dim');if(cur.customCard){cur.customCard(kind);focusCard();return}const m=cur.meta,best=store.get('proto.'+name+'.best',0);
+  if(kind==='ready'){card.innerHTML='<p class="eyebrow">Prototype</p><h1>'+m.title+'</h1><p class="tag">'+m.tag+'</p><ul class="rules">'+m.rules.map(r=>'<li>'+r+'</li>').join('')+'</ul><div class="actions"><button class="btn primary" id="play">Play '+m.title+'</button></div>'+(best?'<p class="best">Your best <b>'+best+'</b></p>':'');
+    $('#play').addEventListener('click',start)}
+  else{const sc=result();
+    card.innerHTML='<p class="eyebrow">Run over</p><h1 class="score">'+sc+'</h1><p class="tag">'+cause+'</p><p class="best">'+(newBest?'<b>New best.</b> ':'Best <b>'+store.get('proto.'+name+'.best',0)+'</b>')+'</p><div class="actions">'+(reviveUsed?'':'<button class="btn" id="revive">Revive</button>')+'<button class="btn primary" id="again">Play again</button></div><p class="fine">Revive stands in for a rewarded ad: one per run, and it never touches your score.</p>';
+    $('#again').addEventListener('click',start);const rv=$('#revive');if(rv)rv.addEventListener('click',()=>doRevive(rv))}
+  focusCard()}
+function focusCard(){const b=card.querySelector('.btn.primary');if(b)try{b.focus({preventScroll:true})}catch(e){}}
+function hideCard(){card.hidden=true;stage.classList.remove('dim')}
+function adPlaceholder(btn,label,done){Snd.ensure();card.querySelectorAll('button').forEach(b=>b.disabled=true);let n=2;btn.textContent=label+' '+n;
+  reviving=setInterval(()=>{n--;if(n>0){btn.textContent=label+' '+n;return}clearInterval(reviving);reviving=null;done();syncPause();Snd.tone(note(5),0.2,'triangle',0.06);Snd.tone(note(7),0.2,'triangle',0.05,0.08)},1000)}
+function doRevive(btn){adPlaceholder(btn,'Ad playing…',()=>{reviveUsed=true;track(name+'.revive',{level:cur.level?cur.level():'endless'});cur.revive();state='play';hideCard()})}
+
+/* ---------- pause: our menu, or the hub opening feedback or a survey ---------- */
+function pause(fromHub){if(state!=='play')return;state='paused';pausedFrom=fromHub?'hub':'menu';cur.up&&cur.up();if(fromHub){syncPause();return}
+  card.hidden=false;stage.classList.add('dim');
+  card.innerHTML='<p class="eyebrow">Paused</p><h1>'+cur.meta.title+'</h1><div class="actions"><button class="btn" id="quit">Quit to menu</button><button class="btn primary" id="resume">Resume</button></div>';
+  $('#resume').addEventListener('click',resume);$('#quit').addEventListener('click',quitRun);focusCard();syncPause()}
+function resume(){if(state!=='paused')return;state='play';pausedFrom=null;hideCard();syncPause()}
+function quitRun(){hubEvent('quit',{level:cur.level?cur.level():'endless'});state='ready';pausedFrom=null;cur.reset(W,H);showCard('ready');syncPause()}
+window.Playtest?.on('pause',()=>pause(true));
+window.Playtest?.on('resume',()=>{if(pausedFrom==='hub')resume()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause(false)});
+
+let lastHud='';
+function hud(){const h=cur.hud(),s=h.join('|');if(s!==lastHud){lastHud=s;$('#v1').textContent=h[0];$('#v2').textContent=h[1];$('#k1').textContent=h[2]||'Score';$('#k2').textContent=h[3]||cur.meta.second}}
+
+function frame(t){const dt=Math.min(0.05,lastT?(t-lastT)/1000:0);lastT=t;
+  if(state==='play')playMs+=dt*1000;
+  cur.update(dt,state==='play');if(state==='dying'){dieT-=dt;if(dieT<=0)finish()}
+  ctx.clearRect(0,0,W,H);cur.draw();hud();
+  requestAnimationFrame(frame)}
+
+/* ---------- input ---------- */
+function pt(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+cv.addEventListener('pointerdown',e=>{if(state!=='play')return;e.preventDefault();try{cv.setPointerCapture(e.pointerId)}catch(_){}const p=pt(e);cur.down(p.x,p.y)});
+cv.addEventListener('pointermove',e=>{if(state!=='play')return;const p=pt(e);if(e.buttons||e.pointerType==='touch')cur.move(p.x,p.y)});
+['pointerup','pointercancel'].forEach(ev=>cv.addEventListener(ev,()=>{if(state==='play')cur.up()}));
+const MOVE_KEYS=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','w','a','s','d'];
+window.addEventListener('keydown',e=>{if(e.key==='Escape'){if(state==='play')pause(false);else if(state==='paused'&&pausedFrom==='menu')resume();return}if(cur.key&&state==='play'&&MOVE_KEYS.includes(e.key)){cur.key(e.key,true);e.preventDefault()}});
+window.addEventListener('keyup',e=>{if(cur.key)cur.key(e.key,false)});
+
+/* ---------- header controls ---------- */
+const pb=$('#pause');function syncPause(){pb.hidden=!(state==='play')}
+pb.addEventListener('click',()=>pause(false));
+const sb=$('#sound');function syncSound(){sb.setAttribute('aria-pressed',String(Snd.on));sb.textContent=Snd.on?'Sound on':'Sound off'}
+sb.addEventListener('click',()=>{Snd.on=!Snd.on;store.set('proto.sound',Snd.on);if(Snd.on)Snd.ensure();syncSound()});syncSound();
+const tb=$('#textsize'),TS_LABEL={1:'Normal',1.25:'Large',1.5:'Larger'},TS_SHORT={1:'Text M',1.25:'Text L',1.5:'Text XL'};
+function syncText(){document.documentElement.style.fontSize=(100*TS)+'%';tb.textContent=TS_SHORT[TS];tb.setAttribute('aria-label','Text size: '+TS_LABEL[TS]+'. Tap to change.')}
+tb.addEventListener('click',()=>{TS=TEXT_SCALES[(TEXT_SCALES.indexOf(TS)+1)%TEXT_SCALES.length];store.set('proto.textScale',TS);syncText();requestAnimationFrame(fit)});syncText();
+
+if(HUB)document.body.classList.add('hub');
+window.Playtest?.setScreenshot(()=>cv.toDataURL('image/png'));
+window.addEventListener('resize',fit);
+fit();cur.reset(W,H);showCard('ready');syncPause();
+requestAnimationFrame(frame);
+window.Playtest?.ready();
+
+})();
+</script>
+</body>
+</html>

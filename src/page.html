@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{NAME}} · NguyenWare prototype</title>
+<meta name="description" content="{{TAGLINE}}">
+<link rel="preload" href="fonts/unbounded-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+<style>:root{--acc:var(--{{ACCENT}})}</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h2 class="name">{{NAME}}</h2>
+    <button class="hbtn" id="pause" type="button" hidden>Pause</button>
+    <button class="hbtn" id="textsize" type="button">Text M</button>
+    <button class="hbtn" id="sound" type="button" aria-pressed="true">Sound on</button>
+  </header>
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="{{NAME}} play field"></canvas>
+    <div class="hud" aria-live="off">
+      <div class="stat"><span class="k" id="k1">Score</span><span class="v" id="v1">0</span></div>
+      <div class="stat r"><span class="k" id="k2">&nbsp;</span><span class="v" id="v2">0</span></div>
+    </div>
+    <div class="card" id="card" role="dialog" aria-live="polite"></div>
+  </main>
+  <p class="foot">{{FOOT}}</p>
+</div>
+<script>
+(function(){
+{{SCRIPT}}
+})();
+</script>
+</body>
+</html>

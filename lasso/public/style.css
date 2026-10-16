@@ -1,0 +1,75 @@
+/* Layout: one-screen arcade cabinet. Header bar, play field fills the rest, cards float over the field.
+   Single dark look by choice. Text in rem so the Large text setting (and the phone's zoom) scales it. */
+@font-face{font-family:"Unbounded";font-weight:500;font-display:swap;src:url("fonts/unbounded-latin-500-normal.woff2") format("woff2")}
+@font-face{font-family:"Unbounded";font-weight:700;font-display:swap;src:url("fonts/unbounded-latin-700-normal.woff2") format("woff2")}
+@font-face{font-family:"Figtree";font-weight:400;font-display:swap;src:url("fonts/figtree-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Figtree";font-weight:600;font-display:swap;src:url("fonts/figtree-latin-600-normal.woff2") format("woff2")}
+@font-face{font-family:"Figtree";font-weight:700;font-display:swap;src:url("fonts/figtree-latin-700-normal.woff2") format("woff2")}
+:root{
+  --ink:#0c0e15;
+  --panel:#131726;
+  --raise:#1c2134;
+  --line:#2a3048;
+  --fg:#eceff7;
+  --muted:#a3aac0;
+  --echo:#69e2ff;
+  --ghost:#a596ff;
+  --lasso:#ffcf5c;
+  --flock:#f1e6c8;
+  --fuse:#ff7a3d;
+  --bad:#ff5470;
+  --display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{height:100%;box-sizing:border-box}
+[hidden]{display:none!important}
+*,*::before,*::after{box-sizing:inherit}
+body{height:100%;margin:0;background:var(--ink);color:var(--fg);font-family:var(--body);font-size:0.9375rem;line-height:1.45;overflow:hidden}
+.app{height:100%;max-width:760px;margin:0 auto;display:grid;grid-template-rows:auto 1fr auto;gap:0.625rem;padding-block:0.625rem;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+.top{display:flex;align-items:center;gap:0.5rem;min-width:0}
+.name{flex:1;min-width:0;margin:0;font:700 1.125rem/1.1 var(--display);letter-spacing:.01em;color:var(--acc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbtn{flex:none;min-height:44px;min-width:44px;font:600 0.8125rem/1 var(--body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 0.75rem;cursor:pointer}
+.hbtn[aria-pressed="false"]{color:var(--muted)}
+button:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+
+.stage{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;position:relative;min-height:0;border-radius:18px;overflow:hidden;background:var(--panel);border:1px solid var(--line)}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.stage::after{content:"";position:absolute;inset:0;background:var(--ink);opacity:0;pointer-events:none;transition:opacity .25s}
+.stage.dim::after{opacity:.55}
+
+.hud{position:absolute;top:0.75rem;left:0.875rem;right:0.875rem;display:flex;justify-content:space-between;pointer-events:none;z-index:1}
+.stat{display:flex;flex-direction:column;gap:0.2rem}
+.stat.r{align-items:flex-end}
+.k{font:600 0.75rem/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.v{font:700 1.25rem/1 var(--display);font-variant-numeric:tabular-nums;color:var(--fg)}
+.stat:first-child .v{color:var(--acc)}
+
+.card{position:absolute;z-index:2;left:50%;top:50%;transform:translate(-50%,-50%);width:min(23rem,calc(100% - 28px));max-height:calc(100% - 28px);overflow:auto;background:var(--raise);border:1px solid var(--line);border-radius:18px;padding:1.375rem 1.25rem 1.125rem;display:flex;flex-direction:column;gap:0.75rem;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.eyebrow{margin:0;font:600 0.75rem/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--acc)}
+.card h1{margin:0;font:700 1.875rem/1.05 var(--display);letter-spacing:-.01em;text-wrap:balance}
+.card h1.score{font-size:2.875rem;color:var(--acc);font-variant-numeric:tabular-nums}
+.tag{margin:0;color:var(--fg);font-weight:600;font-size:1rem}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0.5rem;color:var(--muted);font-size:0.875rem}
+.rules li{display:grid;grid-template-columns:14px 1fr;gap:0.5rem}
+.rules li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--acc);margin-top:0.45em}
+.actions{display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.25rem}
+.btn{flex:1;min-width:7.5rem;min-height:44px;font:700 0.875rem/1.1 var(--display);letter-spacing:.02em;padding:0.875rem;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:default}
+.best{margin:0;font-size:0.875rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.best b{color:var(--fg)}
+.fine{margin:0;font-size:0.75rem;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.375rem}
+.chip{display:flex;flex-direction:column;align-items:flex-start;gap:0.2rem;min-width:0;min-height:44px;text-align:left;font:600 0.8125rem/1.2 var(--body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:0.5rem 0.625rem;cursor:pointer}
+.chip small{font-size:0.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip.on{border-color:var(--acc)}
+.chip:disabled{opacity:.5;cursor:default}
+
+.foot{margin:0;min-height:1.25rem;font-size:0.75rem;color:var(--muted);text-align:center;text-wrap:balance}
+/* In the playtest hub, the bottom-left corner belongs to the hub's Feedback button. */
+body.hub .foot{min-height:56px;font-size:0;color:transparent}
+@media (max-width:420px){.hbtn{padding:0 0.5rem;font-size:0.75rem}.name{font-size:1rem}}
+@media (prefers-reduced-motion:reduce){.stage::after{transition:none}}
