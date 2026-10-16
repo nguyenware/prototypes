@@ -1,35 +1,17 @@
-# Handoff: launch Echo, Lasso and Fuse in the playtest hub
+# Handoff: Echo, Lasso and Fuse in the playtest hub
 
-State on 2026-10-16: the games are built and on `main` here; the hub change is open as nguyenware/playtest-admin PR #50 (branch `add-echo-lasso-fuse`, tests pass). Nothing is deployed and the production database is unchanged. Order matters: the hub's service bindings need the game Workers to exist before the hub deploys.
+State on 2026-10-16: launched. The three games are live, the hub serves them to everyone, and new testers need admin approval before they can play.
 
-## 1. Deploy the three game Workers
-From this repo, for each of `echo`, `lasso`, `fuse`:
-```sh
-cd <id> && npx wrangler deploy
-```
-Each is an assets-only Worker (`<id>/wrangler.jsonc`, assets in `<id>/public`). Check that `https://<id>.summer-sky-afc1.workers.dev/` loads and `/playtest.json` returns the manifest with `"id": "<id>"`. If the account's workers.dev subdomain is not `summer-sky-afc1`, stop and tell Tim: migration 0022 hard-codes those URLs.
+## Done
+- **Game Workers deployed** from `main` with `npx wrangler deploy` in `echo/`, `lasso/` and `fuse/`. Each loads at `https://<id>.summer-sky-afc1.workers.dev/`, and `/playtest.json` returns the manifest with build 0.1.0.
+- **Hub database (production D1 `playtest`)** has migrations 0001–0023 applied and recorded in `d1_migrations`. That includes this repo's games (0022), the Spelled Out rename (0021, which had never been applied) and tester approval (0023). They were applied through the Cloudflare connector, not `d1 migrations apply`.
+- **Open to everyone:** the games were added as invite-only and set to public (Everyone) the same day. They're on the hub's landing page and promo pages (`/games/echo`, `/games/lasso`, `/games/fuse`). `/play/<id>/` asks signed-out visitors to sign in.
+- **Hub changes merged** in nguyenware/playtest-admin PR #50 (the games and their service bindings) and PR #51:
+  - New public sign-ups wait in an "Awaiting approval" queue on `/admin/testers`, where they can be approved or declined. Existing testers were all approved automatically.
+  - `/admin/games` now fetches manifests it hasn't cached yet, so the game cards show their hero images.
 
-Ongoing deploys: `.github/workflows/deploy.yml` deploys on pushes to `main` once the repo has the secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`. Its first run (from the commit that added it) failed for lack of those secrets; that's expected. Add the secrets, or ask Tim whether he'd rather use Workers Builds and remove the workflow.
-
-## 2. Apply hub migration 0022 to production D1
-From nguyenware/playtest-admin on the PR branch (or use `tools/hub/` here, which has a copy of the SQL and a config pointing at the same database):
-```sh
-npx wrangler d1 execute playtest --remote --command "SELECT id, name FROM d1_migrations ORDER BY id"
-```
-If `0022_prototypes.sql` isn't listed:
-```sh
-npx wrangler d1 execute playtest --remote --file migrations/0022_prototypes.sql
-npx wrangler d1 execute playtest --remote --command "INSERT INTO d1_migrations (name) VALUES ('0022_prototypes.sql')"
-npx wrangler d1 execute playtest --remote --command "SELECT id, status, visibility, app_origin FROM games WHERE id IN ('echo','lasso','fuse')"
-```
-Don't use `d1 migrations apply`: if `0021_spelled_out.sql` isn't recorded it would run that too. Report what the first query showed for 0021. `.github/workflows/hub-migration.yml` here does the same steps if you'd rather run it from Actions.
-
-## 3. Merge PR #50
-Ask Tim before merging. Merging deploys the hub through Workers Builds. Then check:
-- `https://playtest.nguyenwarestudios.com/play/echo/` redirects a signed-out visitor to sign-in.
-- `https://playtest.nguyenwarestudios.com/games/echo` is a 404 for someone without access (invite-only).
-- In `/admin/games`, the three games show their manifest (name, build 0.1.0, hero image).
-
-## 4. Left for Tim, in the hub admin
-- `/admin/games`: Give access to the Friends and Family cohorts for each game.
-- `/admin/rounds`: open a round per game. The shared default survey (fun, clarity, replay) applies.
+## Open
+1. **Rounds (Tim, in the hub admin):** open a round per game on `/admin/rounds`. The shared default survey (fun, clarity, replay) applies. Cohort access isn't needed now that the games are public.
+2. **Ongoing deploys:** `.github/workflows/deploy.yml` deploys on pushes to `main` once the repo has the secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit) and `CLOUDFLARE_ACCOUNT_ID`. Neither is set yet, so until then redeploy by hand with `npx wrangler deploy` in each game folder after `npm run build`. Or ask Tim whether he'd rather use Workers Builds and remove the workflow.
+3. **Expiry for sign-ups awaiting approval (hub):** sign-ups nobody approves are meant to be deleted after 30 days. That switches on once the policy in site-nguyenwarestudios `src/privacy/policy.ts` lists the limit and playtest-admin's `src/privacy/retention.json` gets `"awaitingApproval": 30`. Until then, the inactive-account limit covers them.
+4. **One-off migration helpers:** `tools/hub/` and `.github/workflows/hub-migration.yml` were only for applying 0022, which is done. Remove them when convenient.
