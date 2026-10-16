@@ -1,0 +1,35 @@
+name: Deploy games
+on:
+  push:
+    branches: [main]
+    paths: ["echo/**", "lasso/**", "fuse/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+concurrency: deploy-${{ github.ref }}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        game: [echo, lasso, fuse]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Deploy ${{ matrix.game }}
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: ${{ matrix.game }}
+          command: deploy
+      - name: Check the game and its manifest load
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          echo "Deployed to ${URL}"
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "${URL}/" -o /dev/null && curl -fsS "${URL}/playtest.json" | grep -q '"id": "${{ matrix.game }}"'; then echo "OK"; exit 0; fi
+            sleep 5
+          done
+          echo "Game or manifest did not load at ${URL}"; exit 1

@@ -18,4 +18,6 @@ Each game is a static-assets-only Cloudflare Worker named after its id, deployed
 - `tools/build.mjs`: writes `<id>/public` and `<id>/wrangler.jsonc`.
 
 ## Deploy
-Workers Builds, one Worker per game on the same repo: root directory `/echo`, `/lasso` or `/fuse`, deploy command `npx wrangler deploy`, build watch path `<id>/*`. Run `npm run build` and commit before pushing.
+GitHub Actions (`.github/workflows/deploy.yml`) deploys a game's Worker whenever its folder changes on `main`, then checks the game and its `playtest.json` load. Run `npm run build` and commit before pushing. It needs two repository secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit and D1: Edit on the NguyenWare account) and `CLOUDFLARE_ACCOUNT_ID`.
+
+`.github/workflows/hub-migration.yml` is a one-off, run by hand, that adds the three games to the playtest hub's database (migration 0022 from nguyenware/playtest-admin).

@@ -1,0 +1,9 @@
+// One-off: lets .github/workflows/hub-migration.yml reach the playtest hub's production D1 by name.
+// The schema lives in nguyenware/playtest-admin (migrations/); 0022_prototypes.sql here is a copy of its file.
+{
+	"name": "playtest-hub-migration",
+	"compatibility_date": "2026-10-01",
+	"d1_databases": [
+		{ "binding": "DB", "database_name": "playtest", "database_id": "2418cac0-011b-455f-b2e3-c7b2d84b8af6" }
+	]
+}
