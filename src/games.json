@@ -1,5 +1,5 @@
 {
   "echo":  { "name": "Echo",  "accent": "echo",  "tagline": "Haunt the whole house in one night, with help from your past selves.", "foot": "Keyboard works too: arrow keys or WASD. On iPhone, turn the silent switch off for sound." },
-  "lasso": { "name": "Lasso", "accent": "flock", "tagline": "Herd black and white sheep with your dog, then rope one color at a time.", "foot": "On iPhone, turn the silent switch off for sound." },
+  "lasso": { "name": "Lasso", "accent": "flock", "tagline": "Herd a mixed flock with your dog, then rope one color at a time.", "foot": "On iPhone, turn the silent switch off for sound." },
   "fuse":  { "name": "Fuse",  "accent": "fuse",  "tagline": "Turn the tiles ahead of the flame and keep the fuse burning.", "foot": "On iPhone, turn the silent switch off for sound." }
 }

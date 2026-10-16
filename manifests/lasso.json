@@ -1,8 +1,8 @@
 {
   "id": "lasso",
   "name": "Lasso",
-  "tagline": "Herd black and white sheep with your dog, then rope one color at a time.",
-  "description": "Your finger is a sheepdog and the flock runs from it. Push the white sheep away from the black ones, then draw a rope loop around a single color to pen them. Each day is a short round with a goal before sunset, and every day adds a new twist: rams, lambs, mud, a wolf and dusk.",
+  "tagline": "Herd a mixed flock with your dog, then rope one color at a time.",
+  "description": "Your finger is a sheepdog and the flock runs from it. Push the sheep apart by color, then draw a rope loop around a single color to pen them. Each day is a short round with a goal before sunset, and every day adds a new twist: rams, lambs, mud, a wolf, dusk, grey sheep, rocks and hedges, then spotted sheep. Remix days put more obstacles in the field each day.",
   "genre": "arcade",
   "session_minutes": 5,
   "min_age": 6,
@@ -16,8 +16,8 @@
     "desktop"
   ],
   "build": {
-    "version": "0.1.0",
-    "notes": "First playtest build: six days that each add one twist, then remix days that combine them."
+    "version": "0.2.0",
+    "notes": "Days 7 to 9 add grey sheep, rocks and hedges, and spotted sheep. Remix days start at day 10 and add an obstacle each day."
   },
   "what_to_test": [
     {
@@ -27,6 +27,10 @@
     {
       "title": "Drawing the rope",
       "details": "Is it clear how to close a loop? Tell us if loops failed when you thought they should work."
+    },
+    {
+      "title": "More colors and obstacles",
+      "details": "From day 7: can you tell grey and spotted sheep apart at a glance? Do rocks and hedges help you corner sheep, or just get in the way?"
     },
     {
       "title": "Which day is the wall?",
@@ -52,7 +56,7 @@
   "events": [
     {
       "name": "lasso.pen",
-      "description": "A one-color pen was closed",
+      "description": "A one-color pen was closed (color: white, black, muddy, grey or spotted)",
       "props": {
         "day": "string",
         "size": "number",
