@@ -1,7 +1,9 @@
 /* =====================================================
    LASSO — sheepdog herding, played in short days
    ===================================================== */
-const WOOL=['#f4f1ea','#2a292f','#8a6845'],RIM=['#d3ccbc','#55525e','#694c30'],FACE=['#3b3530','#121116','#4a3522'];
+// wool index: 0 white, 1 black, 2 muddy, 3 grey, 4 spotted (white with black patches, so it reads without color)
+const WOOL=['#f4f1ea','#2a292f','#8a6845','#a3a1a8','#f4f1ea'],RIM=['#d3ccbc','#55525e','#694c30','#7f7d86','#d3ccbc'],FACE=['#3b3530','#121116','#4a3522','#2a282e','#121116'];
+const CNAME=['White','Black','Muddy','Grey','Spotted'],FLOCK=[0,1,3,4];
 const DOGPAL={dark:'#17161b',light:'#f2efe6'},WOLFPAL={dark:'#5b5e69',light:'#a9acb6',eye:'#ffcf5c'};
 const Lasso={
   meta:{title:'Lasso',tag:'Herd the flock, then rope one color.',second:'Penned',rules:[
@@ -15,8 +17,12 @@ const Lasso={
     {goal:18,len:80,iv:1.55,start:12,tw:['ram','lamb'],twist:'Lambs join the flock. They bolt when the dog gets close.'},
     {goal:20,len:80,iv:1.5,start:12,tw:['ram','lamb','mud'],twist:'Mud puddles. Muddy sheep turn brown until the dog shakes them clean.'},
     {goal:22,len:85,iv:1.45,start:12,tw:['ram','lamb','mud','wolf'],twist:'A wolf prowls the edges and scatters the flock. Chase it off with the dog.'},
-    {goal:24,len:90,iv:1.4,start:12,tw:['ram','lamb','mud','wolf','dusk'],twist:'Dusk. The light fades and dark sheep hide outside the dog’s glow.'}],
-  cfg(d){if(d<=6)return this.DAYS[d-1];const k=d-6;return{goal:24+3*k,len:90,iv:Math.max(0.9,1.4-0.06*k),start:12,tw:['ram','lamb','mud','wolf','dusk'],twist:'Remix day. Every twist at once, and the sheep come faster.'}},
+    {goal:24,len:90,iv:1.4,start:12,tw:['ram','lamb','mud','wolf','dusk'],twist:'Dusk. The light fades and dark sheep hide outside the dog’s glow.'},
+    {goal:24,len:95,iv:1.4,start:12,cols:3,tw:['ram','lamb','mud','wolf','dusk'],twist:'Grey sheep join the flock. Three colors to sort now.'},
+    {goal:24,len:95,iv:1.4,start:12,cols:3,obs:3,tw:['ram','lamb','mud','wolf','dusk'],twist:'Rocks and hedges. Sheep can’t walk through them, but your rope can.'},
+    {goal:24,len:100,iv:1.4,start:12,cols:4,obs:3,tw:['ram','lamb','mud','wolf','dusk'],twist:'Spotted sheep arrive. Four colors, and spotted only pens with spotted.'}],
+  // remix days: every twist, faster sheep, and one more obstacle each day
+  cfg(d){if(d<=this.DAYS.length)return this.DAYS[d-1];const k=d-this.DAYS.length;return{goal:24+3*k,len:100,iv:Math.max(0.9,1.4-0.06*k),start:12,cols:4,obs:Math.min(8,3+k),tw:['ram','lamb','mud','wolf','dusk'],twist:'Remix day. Every twist at once, more in the way, and the sheep come faster.'}},
   loadProgress(){this.unlocked=store.get('proto.lasso.day',1);this.stars=store.get('proto.lasso.stars',{});this.day=this.unlocked},
   resize(w,h){this.w=w;this.h=h;const m=Math.min(w,h);this.mr=Math.max(9,m*0.026);this.closeR=Math.max(34,m*0.075);this.flee=m*0.22;this.makeGrass();if(this.dog){this.dog.x=Math.min(w-20,this.dog.x);this.dog.y=Math.min(h-30,this.dog.y)}},
   makeGrass(){const n=Math.min(900,Math.floor(this.w*this.h/900));this.grass=[];for(let i=0;i<n;i++)this.grass.push({x:Math.random()*this.w,y:Math.random()*this.h,l:rand(3,7),k:rand(-0.5,0.5),d:Math.random()<0.5});
@@ -26,11 +32,21 @@ const Lasso={
     this.motes=[];this.t=0;this.len=cf.len;this.left=cf.len;this.spawnAcc=0;this.score=0;this.penned=0;this.path=null;this.lock=false;this.ptr=null;this.parts=[];this.pops=[];this.cinches=[];this.fails=[];this.rescued=false;
     this.dog={x:w*0.5,y:h-56,a:-Math.PI/2,run:0};this.wolf=null;this.wolfT=12;
     this.puddles=[];if(this.has('mud'))for(let i=0;i<3;i++){const rx=this.mr*rand(2.6,3.6);this.puddles.push({x:rand(w*0.15,w*0.85),y:rand(100,h-100),rx,ry:rx*0.6})}
+    this.obs=[];this.placeObstacles(cf.obs||0);
     for(let i=0;i<cf.start;i++)this.spawn(true,'ewe')},
+  // obstacles are capsules (segment a-b with radius r): a rock is a zero-length one, a hedge a long one
+  placeObstacles(n){const w=this.w,h=this.h,mr=this.mr;
+    for(let i=0,tries=0;i<n&&tries<200;tries++){const hedge=Math.random()<0.45,x=rand(w*0.12,w*0.88),y=rand(110,h-130),r=hedge?mr*0.9:mr*rand(1.3,2),L=hedge?mr*rand(4,7):0,a=Math.random()*Math.PI,
+      o={ax:x-Math.cos(a)*L/2,ay:y-Math.sin(a)*L/2,bx:x+Math.cos(a)*L/2,by:y+Math.sin(a)*L/2,r,hedge,x,y,hl:L/2},g=r+mr*3;
+      // keep a gap a few sheep wide to the walls and other obstacles, and stay off puddles and the dog's start
+      if(Math.min(o.ax,o.bx)<g||Math.max(o.ax,o.bx)>w-g||Math.min(o.ay,o.by)<48+g||Math.max(o.ay,o.by)>h-30-g)continue;
+      if(this.obs.some(q=>dist(q,o)<q.r+q.hl+g+L/2)||this.puddles.some(p=>dist(p,o)<p.rx+r+L/2+mr)||Math.hypot(x-w*0.5,y-(h-56))<this.flee)continue;
+      this.obs.push(o);i++}},
+  near(o,x,y){const dx=o.bx-o.ax,dy=o.by-o.ay,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((x-o.ax)*dx+(y-o.ay)*dy)/l)):0;return{x:o.ax+dx*t,y:o.ay+dy*t}},
   pickKind(){const x=Math.random();if(this.has('lamb')&&x<0.2)return'lamb';if(this.has('ram')&&x>0.85)return'ram';return'ewe'},
   rad(m){return this.mr*(m.kind==='ram'?1.18:m.kind==='lamb'?0.72:1)},
   key(m){return m.mud?2:m.c},
-  spawn(inside,kind){const c=Math.random()<0.5?0:1,m=this.mr*2;kind=kind||this.pickKind();let x,y,vx=0,vy=0;
+  spawn(inside,kind){const c=FLOCK[Math.floor(Math.random()*(this.cf.cols||2))],m=this.mr*2;kind=kind||this.pickKind();let x,y,vx=0,vy=0;
     if(inside){x=rand(m,this.w-m);y=rand(60,this.h-m-70)}else{const s=Math.floor(Math.random()*3),v=70;
       if(s===0){x=rand(m,this.w-m);y=56;vy=v}else if(s===1){x=this.w-m;y=rand(60,this.h*0.7);vx=-v}else{x=m;y=rand(60,this.h*0.7);vx=v}}
     this.motes.push({x,y,vx,vy,c,kind,age:0,ph:Math.random()*6.28,a:Math.random()*6.28,mud:false,cleanT:0})},
@@ -42,10 +58,10 @@ const Lasso={
   close(poly){if(state!=='play')return;const inside=this.motes.filter(m=>pip(poly,m.x,m.y));let cx=0,cy=0;poly.forEach(p=>{cx+=p.x;cy+=p.y});cx/=poly.length;cy/=poly.length;
     if(!inside.length){this.fails.push({poly,t:0,color:'#d8b77f'});return}
     const cols=new Set(inside.map(m=>this.key(m)));
-    if(cols.size===1){const n=inside.length,pts=n*n*10,c=this.key(inside[0]);track('lasso.pen',{day:this.level(),size:n,color:['white','black','muddy'][c]});this.score+=pts;this.penned+=n;
+    if(cols.size===1){const n=inside.length,pts=n*n*10,c=this.key(inside[0]);track('lasso.pen',{day:this.level(),size:n,color:CNAME[c].toLowerCase()});this.score+=pts;this.penned+=n;
       this.motes=this.motes.filter(m=>!inside.includes(m));inside.forEach(m=>burst(this.parts,m.x,m.y,WOOL[c],7,120,3));
-      this.cinches.push({poly,cx,cy,t:0,color:WOOL[c]});pop(this.pops,cx,cy,['White','Black','Muddy'][c]+' ×'+n+'  +'+pts,'#fff7df');
-      Snd.bleat(c===1?380:c===2?330:520);for(let i=0;i<Math.min(n,8);i++)Snd.tone(note(5+i),0.16,'triangle',0.05,0.08+i*0.05);buzz(10+n*4);
+      this.cinches.push({poly,cx,cy,t:0,color:WOOL[c]});pop(this.pops,cx,cy,CNAME[c]+' ×'+n+'  +'+pts,'#fff7df');
+      Snd.bleat([520,380,330,450,480][c]);for(let i=0;i<Math.min(n,8);i++)Snd.tone(note(5+i),0.16,'triangle',0.05,0.08+i*0.05);buzz(10+n*4);
       if(this.penned>=this.cf.goal){for(let i=0;i<6;i++)Snd.tone(note(10+i),0.25,'triangle',0.06,0.3+i*0.07);winRound('Penned '+this.penned+' with '+Math.ceil(this.left)+'s of daylight left.')}}
     else{track('lasso.mixed_pen',{day:this.level(),size:inside.length});this.fails.push({poly,t:0,color:C.bad});for(let i=0;i<3;i++)this.spawn(false);pop(this.pops,cx,cy,'Mixed flock. +3 sheep','#fff7df');Snd.bleat(300);Snd.noise(0.2,0.06,400,0.8);buzz([30,40,30])}},
   spawnWolf(){const left=Math.random()<0.5;this.wolf={x:left?-30:this.w+30,y:rand(this.h*0.3,this.h*0.7),a:left?0:Math.PI,state:'prowl',t:0,run:0};Snd.howl();pop(this.pops,left?60:this.w-60,this.wolf.y-30,'Wolf!',C.bad)},
@@ -74,6 +90,7 @@ const Lasso={
     for(const m of ms){const r=this.rad(m),cap=m.kind==='lamb'?260:m.kind==='ram'?120:190;m.vx*=damp;m.vy*=damp;const sp=Math.hypot(m.vx,m.vy);if(sp>cap){m.vx*=cap/sp;m.vy*=cap/sp}
       if(sp>14){const ta=Math.atan2(m.vy,m.vx);let df=ta-m.a;df=Math.atan2(Math.sin(df),Math.cos(df));m.a+=df*Math.min(1,dt*8)}
       m.x+=m.vx*dt;m.y+=m.vy*dt;
+      for(const o of this.obs){const q=this.near(o,m.x,m.y),ox=m.x-q.x,oy=m.y-q.y,od=Math.hypot(ox,oy),min=o.r+r;if(od<min){const nx=od>0.01?ox/od:1,ny=od>0.01?oy/od:0,vn=m.vx*nx+m.vy*ny;m.x=q.x+nx*min;m.y=q.y+ny*min;if(vn<0){m.vx-=vn*nx*1.5;m.vy-=vn*ny*1.5}}}
       if(m.x<r){m.x=r;m.vx=Math.abs(m.vx)}if(m.x>this.w-r){m.x=this.w-r;m.vx=-Math.abs(m.vx)}if(m.y<48+r){m.y=48+r;m.vy=Math.abs(m.vy)}if(m.y>this.h-r-30){m.y=this.h-r-30;m.vy=-Math.abs(m.vy)}}
     if(ms.length>this.CAP){Snd.lose();buzz([40,40,80]);ms.forEach(m=>burst(this.parts,m.x,m.y,WOOL[this.key(m)],3,120));gameOver('The field overflowed at '+this.CAP+' sheep.','overflow');return}
     if(this.left<=0){this.left=0;Snd.lose();buzz([40,40,80]);gameOver('The sun set with '+this.penned+' of '+this.cf.goal+' penned.','sunset')}},
@@ -100,9 +117,14 @@ const Lasso={
     ctx.fillStyle=FACE[c];ctx.beginPath();ctx.ellipse(r*0.9,-r*0.36,r*0.2,r*0.12,-0.6,0,Math.PI*2);ctx.ellipse(r*0.9,r*0.36,r*0.2,r*0.12,0.6,0,Math.PI*2);ctx.fill();
     ctx.fillStyle=WOOL[c];ctx.strokeStyle=RIM[c];ctx.lineWidth=1.2;ctx.beginPath();for(let k=0;k<7;k++){const a=k/7*Math.PI*2;ctx.moveTo(Math.cos(a)*r*0.5+r*0.5,Math.sin(a)*r*0.42);ctx.arc(Math.cos(a)*r*0.5,Math.sin(a)*r*0.42,r*0.5,0,Math.PI*2)}ctx.fill();ctx.stroke();
     ctx.beginPath();ctx.arc(-r*0.05,0,r*0.62,0,Math.PI*2);ctx.fill();
+    if(c===4){ctx.fillStyle=WOOL[1];ctx.beginPath();ctx.ellipse(-r*0.45,-r*0.2,r*0.3,r*0.22,0.4,0,Math.PI*2);ctx.ellipse(r*0.15,r*0.3,r*0.26,r*0.2,-0.3,0,Math.PI*2);ctx.ellipse(-r*0.1,-r*0.48,r*0.18,r*0.13,0,0,Math.PI*2);ctx.fill()}
     ctx.fillStyle=FACE[c];ctx.beginPath();ctx.ellipse(r*0.9,0,r*0.36,r*0.27,0,0,Math.PI*2);ctx.fill();
     if(m.kind==='ram'){ctx.strokeStyle='#caa46a';ctx.lineWidth=r*0.16;ctx.lineCap='round';ctx.beginPath();ctx.arc(r*0.72,-r*0.3,r*0.22,Math.PI*0.2,Math.PI*1.5);ctx.stroke();ctx.beginPath();ctx.arc(r*0.72,r*0.3,r*0.22,-Math.PI*1.5,-Math.PI*0.2);ctx.stroke()}
     ctx.restore()},
+  drawObstacle(o){ctx.lineCap='round';const seg=(w,c,dx,dy)=>{ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(o.ax+dx,o.ay+dy);ctx.lineTo(o.bx+dx+0.01,o.by+dy);ctx.stroke()};
+    seg(o.r*2,'rgba(10,30,8,.3)',o.r*0.15,o.r*0.3);
+    if(o.hedge){seg(o.r*2,'#2c5a24',0,0);seg(o.r*1.1,'#3f7a31',-o.r*0.15,-o.r*0.3);ctx.fillStyle='#57963f';const dx=o.bx-o.ax,dy=o.by-o.ay;for(let i=0;i<=4;i++){ctx.beginPath();ctx.arc(o.ax+dx*i/4-o.r*0.2,o.ay+dy*i/4-o.r*0.35,o.r*0.28,0,Math.PI*2);ctx.fill()}}
+    else{seg(o.r*2,'#56534f',0,0);ctx.fillStyle='#6e6a64';ctx.beginPath();ctx.ellipse(o.x-o.r*0.25,o.y-o.r*0.3,o.r*0.6,o.r*0.42,-0.3,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#3f3c39';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(o.x+o.r*0.1,o.y-o.r*0.5);ctx.lineTo(o.x+o.r*0.3,o.y+o.r*0.1);ctx.stroke()}},
   drawCanid(d,s,pal){const wag=Math.sin(d.run*0.8+performance.now()/90)*0.5;
     ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.a);
     ctx.fillStyle='rgba(10,30,8,.3)';ctx.beginPath();ctx.ellipse(s*0.1,s*0.25,s*1.3,s*0.6,0,0,Math.PI*2);ctx.fill();
@@ -123,6 +145,7 @@ const Lasso={
     ctx.lineWidth=1.3;ctx.lineCap='round';ctx.strokeStyle='#5f9147';ctx.beginPath();for(const g of this.grass)if(!g.d){ctx.moveTo(g.x,g.y);ctx.lineTo(g.x+g.k*g.l,g.y-g.l)}ctx.stroke();
     ctx.strokeStyle='#3c6530';ctx.beginPath();for(const g of this.grass)if(g.d){ctx.moveTo(g.x,g.y);ctx.lineTo(g.x+g.k*g.l,g.y-g.l)}ctx.stroke();
     for(const p of this.puddles){ctx.fillStyle='#5a4128';ctx.beginPath();ctx.ellipse(p.x,p.y,p.rx,p.ry,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(140,110,70,.45)';ctx.beginPath();ctx.ellipse(p.x-p.rx*0.2,p.y-p.ry*0.25,p.rx*0.45,p.ry*0.3,0,0,Math.PI*2);ctx.fill()}
+    for(const o of this.obs)this.drawObstacle(o);
     if(prog>0){ctx.fillStyle='rgba(255,120,40,'+(0.16*prog)+')';ctx.fillRect(0,0,this.w,this.h)}
     for(const c of this.cinches){const k=Math.min(1,c.t/0.35),s=1-k*0.9,pts=c.poly.map(p=>({x:c.cx+(p.x-c.cx)*s,y:c.cy+(p.y-c.cy)*s}));ctx.globalAlpha=0.3*(1-k);ctx.fillStyle=c.color;ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fill();this.drawRope(pts,true,1-k)}
     const sorted=this.motes.slice().sort((a,b)=>a.y-b.y);for(const m of sorted)this.drawSheep(m);
